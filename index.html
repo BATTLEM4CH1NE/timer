@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ao5 Cube Race Timer - Focused</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-primary': '#0a0a23',
+                        'dark-secondary': '#1e293b',
+                        'accent-green': '#4ade80',
+                        'accent-red': '#f87171',
+                        'accent-yellow': '#fcd34d',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            background-color: #0a0a23; 
+            /* Ensure the body is clickable */
+            cursor: pointer; 
+        }
+
+        .timer-display {
+            font-family: 'Inter', monospace;
+            font-weight: 800;
+            line-height: 1;
+            transition: color 0.3s;
+        }
+
+        /* Responsive font sizes for the main timer */
+        .timer-size-large {
+            font-size: 6rem;
+        }
+        @media (max-width: 1024px) {
+            .timer-size-large {
+                font-size: 4rem;
+            }
+        }
+        @media (max-width: 640px) {
+            font-size: 3rem;
+            }
+        }
+        
+        .ready-text {
+            color: #4ade80; /* accent-green */
+            transition: color 0.2s ease-in-out;
+        }
+        
+        /* Custom scrollbar for history */
+        #history-1, #history-2 {
+            scrollbar-width: thin;
+            scrollbar-color: #475569 #1e293b;
+        }
+        #history-1::-webkit-scrollbar, #history-2::-webkit-scrollbar {
+            width: 8px;
+        }
+        #history-1::-webkit-scrollbar-track, #history-2::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        #history-1::-webkit-scrollbar-thumb, #history-2::-webkit-scrollbar-thumb {
+            background-color: #475569;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white font-sans flex flex-col p-4 md:p-8">
+
+    <!-- Player Selection Screen -->
+    <div id="login-container" class="fixed inset-0 bg-black bg-opacity-95 z-50 flex flex-col items-center justify-center p-8">
+        <div class="bg-dark-secondary p-8 md:p-12 rounded-xl shadow-2xl text-center max-w-lg w-full border border-gray-700">
+            <h1 class="text-4xl font-extrabold text-accent-green mb-6">Select Your Role</h1>
+            <p class="text-gray-300 mb-8 text-lg">Who are you playing as for this race?</p>
+            <div class="flex flex-col space-y-4">
+                <button onclick="selectPlayer(1)" class="py-4 px-6 bg-indigo-600 text-white font-bold text-xl rounded-xl shadow-lg hover:bg-indigo-700 transition-colors duration-200 transform hover:scale-[1.02] active:scale-100">
+                    I am Player 1
+                </button>
+                <button onclick="selectPlayer(2)" class="py-4 px-6 bg-fuchsia-600 text-white font-bold text-xl rounded-xl shadow-lg hover:bg-fuchsia-700 transition-colors duration-200 transform hover:scale-[1.02] active:scale-100">
+                    I am Player 2
+                </button>
+            </div>
+            <p class="text-sm text-gray-500 mt-6">Note: Only the selected player can control the timer with **SPACEBAR** or **MOUSE CLICK**.</p>
+        </div>
+    </div>
+
+
+    <!-- Main Game UI (Hidden until player selection) -->
+    <div id="game-container" class="hidden flex flex-col flex-grow">
+        
+        <!-- Top Row: Scramble Display (Full width) -->
+        <div class="mb-6 lg:mb-8">
+            <div id="scramble-container" class="w-full bg-dark-secondary p-4 md:p-6 rounded-xl shadow-xl border border-gray-700">
+                <p class="text-lg font-semibold text-gray-300 mb-2">Current Scramble (3x3) - <span id="round-counter">Round 1/5</span>:</p>
+                <div id="scramble-text" class="text-2xl md:text-3xl font-bold text-white tracking-wider break-words select-all">
+                    U R F' D2 B U2 L D' R2 F2 U' D F2 L2 F2 R2 B2 U2 D
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Timer & Data Section (Horizontal Split: Left=P1, Right=P2) -->
+        <div class="flex flex-col lg:flex-row gap-6 lg:gap-8 flex-grow">
+            
+            <!-- Player 1 Panel (Left Side) -->
+            <div id="player-1-panel" class="lg:w-1/2 p-6 bg-dark-secondary rounded-xl shadow-2xl transition-all duration-300 border-2 border-transparent flex flex-col">
+                <h2 class="text-2xl font-bold mb-4 text-center text-accent-green">Player 1</h2>
+                <div id="timer-1" class="timer-display timer-size-large text-center text-gray-500">0.00</div>
+                <p id="state-1" class="text-center text-lg font-semibold mt-2 h-6 text-gray-400">Waiting</p>
+                
+                <div id="result-1" class="text-center text-xl font-bold text-accent-yellow h-8 mt-2"></div>
+
+                <!-- Penalty Controls for Player 1 (Only visible to current user after solve) -->
+                <div id="penalty-controls-1" class="mt-6 hidden flex flex-col items-center">
+                    <p class="text-sm font-semibold text-gray-400 mb-3">Apply Manual Penalty to Last Solve:</p>
+                    <div class="flex space-x-2">
+                        <button onclick="applyManualPenalty(1, '+2')" class="px-4 py-2 text-sm bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 transition-colors">
+                            +2
+                        </button>
+                        <button onclick="applyManualPenalty(1, 'DNF')" class="px-4 py-2 text-sm bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors">
+                            DNF
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Averages Display (Ao5 and Ca) Pushed to the bottom -->
+                <div id="averages-1" class="mt-auto p-4 bg-dark-primary rounded-lg border border-gray-700">
+                    <p class="text-sm font-semibold text-gray-400 mb-1">Averages:</p>
+                    <div class="flex justify-around text-lg font-bold">
+                        <span id="ao5-1">Ao5: <span class="text-gray-500">N/A</span></span>
+                        <span id="ca-1" class="hidden">Ca: <span class="text-gray-500">N/A</span></span>
+                    </div>
+                </div>
+                
+                <!-- History (Immediately after Averages) -->
+                <div id="history-1" class="mt-4 p-4 bg-dark-primary rounded-lg max-h-48 overflow-y-auto border border-gray-700">
+                    <p class="text-gray-500 text-sm">No solves yet.</p>
+                </div>
+            </div>
+
+            <!-- Player 2 Panel (Right Side) -->
+            <div id="player-2-panel" class="lg:w-1/2 p-6 bg-dark-secondary rounded-xl shadow-2xl transition-all duration-300 border-2 border-transparent flex flex-col">
+                <h2 class="text-2xl font-bold mb-4 text-center text-accent-green">Player 2</h2>
+                <div id="timer-2" class="timer-display timer-size-large text-center text-gray-500">0.00</div>
+                <p id="state-2" class="text-center text-lg font-semibold mt-2 h-6 text-gray-400">Waiting</p>
+                
+                <div id="result-2" class="text-center text-xl font-bold text-accent-yellow h-8 mt-2"></div>
+                
+                <!-- Penalty Controls for Player 2 (Only visible to current user after solve) -->
+                <div id="penalty-controls-2" class="mt-6 hidden flex flex-col items-center">
+                    <p class="text-sm font-semibold text-gray-400 mb-3">Apply Manual Penalty to Last Solve:</p>
+                    <div class="flex space-x-2">
+                        <button onclick="applyManualPenalty(2, '+2')" class="px-4 py-2 text-sm bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 transition-colors">
+                            +2
+                        </button>
+                        <button onclick="applyManualPenalty(2, 'DNF')" class="px-4 py-2 text-sm bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors">
+                            DNF
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Averages Display (Ao5 and Ca) Pushed to the bottom -->
+                <div id="averages-2" class="mt-auto p-4 bg-dark-primary rounded-lg border border-gray-700">
+                    <p class="text-sm font-semibold text-gray-400 mb-1">Averages:</p>
+                    <div class="flex justify-around text-lg font-bold">
+                        <span id="ao5-2">Ao5: <span class="text-gray-500">N/A</span></span>
+                        <span id="ca-2" class="hidden">Ca: <span class="text-gray-500">N/A</span></span>
+                    </div>
+                </div>
+                
+                <!-- History (Immediately after Averages) -->
+                <div id="history-2" class="mt-4 p-4 bg-dark-primary rounded-lg max-h-48 overflow-y-auto border border-gray-700">
+                    <p class="text-gray-500 text-sm">No solves yet.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls (Bottom Center) -->
+        <div class="mt-8 flex justify-center space-x-4">
+            <button id="next-round-btn" onclick="handleNextRound()" disabled class="px-8 py-4 bg-indigo-600 text-white font-extrabold text-lg rounded-xl shadow-2xl hover:bg-indigo-700 transition-colors duration-200 transform hover:scale-[1.02] active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                Waiting for both players to solve...
+            </button>
+        </div>
+    </div>
+
+    <!-- Message/Alert Modal (Still used for voting/critical errors) -->
+    <div id="modal-container" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center z-50">
+        <div id="modal-content-wrapper" class="bg-dark-secondary p-8 rounded-xl shadow-2xl max-w-lg w-full text-white text-center border-2 border-accent-yellow">
+            <p id="modal-message" class="text-xl font-semibold mb-4 whitespace-pre-line"></p>
+            <!-- Dynamic Buttons Area -->
+            <div id="modal-buttons" class="flex justify-center space-x-4">
+                <button id="modal-close-btn" onclick="hideModal()" class="px-6 py-3 bg-accent-green text-dark-primary font-bold rounded-lg hover:bg-green-500 transition-colors">
+                    Continue
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Minimal Waiting Modal (Used for non-blocking feedback like penalty applied) -->
+    <div id="waiting-modal-container" class="fixed top-4 left-1/2 -translate-x-1/2 bg-gray-800 p-4 rounded-xl shadow-2xl max-w-sm w-full text-white text-center border-2 border-gray-600 z-40 hidden transition-opacity duration-300">
+        <p id="waiting-modal-message" class="text-base font-medium text-gray-300"></p>
+    </div>
+
+    <script>
+        // --- Game State Variables ---
+        const GAME_STATE = {
+            READY: 'READY',     // Ready for the spacebar hold
+            INSPECTION: 'INSPECTION',
+            SOLVING: 'SOLVING',
+            SOLVED: 'SOLVED'
+        };
+
+        let currentUser = 0; 
+        let isBonusRound = false;
+        
+        let game = {
+            1: { 
+                state: GAME_STATE.READY, 
+                time: 0, 
+                timerId: null, 
+                result: '', 
+                history: [], 
+                hasPenalty: false, 
+                inspectionStart: 0, 
+                startTime: 0, 
+                unpenalizedTime: 0,
+                vote: null // 'restart' or 'bonus'
+            },
+            2: { 
+                state: GAME_STATE.READY, 
+                time: 0, 
+                timerId: null, 
+                result: '', 
+                history: [], 
+                hasPenalty: false, 
+                inspectionStart: 0, 
+                startTime: 0, 
+                unpenalizedTime: 0,
+                vote: null
+            }
+        };
+
+        const inspectionDuration = 15000; 
+        const maxTime = 600000; // 10 minutes
+        const DNF_VALUE = maxTime + 100000; // A value clearly indicating DNF
+
+        // --- DOM Elements ---
+        const loginContainer = document.getElementById('login-container');
+        const gameContainer = document.getElementById('game-container');
+        const scrambleText = document.getElementById('scramble-text');
+        const nextRoundBtn = document.getElementById('next-round-btn');
+        const roundCounterEl = document.getElementById('round-counter');
+        const modalContainer = document.getElementById('modal-container');
+        const modalMessage = document.getElementById('modal-message');
+        const modalButtons = document.getElementById('modal-buttons');
+        const waitingModalContainer = document.getElementById('waiting-modal-container');
+        
+        // --- Utility Functions ---
+
+        /**
+         * Formats milliseconds into a standard WCA time string (M:SS.cc).
+         */
+        function formatTime(ms) {
+            if (ms < 0) return '0.00';
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            const centiseconds = Math.floor((ms % 1000) / 10);
+
+            if (minutes > 0) {
+                return `${minutes}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+            }
+            return `${seconds}.${centiseconds.toString().padStart(2, '0')}`;
+        }
+
+        /**
+         * Calculates the WCA-style average for any number of solves (N).
+         * Trims approx. 20% fastest and 20% slowest.
+         * @param {number[]} times - Array of solve times (ms).
+         * @returns {string} - Formatted average time or N/A/DNF.
+         */
+        function calculateCustomAverage(times) {
+            const N = times.length;
+            if (N < 3) return 'N/A';
+
+            // Calculate K: number of solves to trim from each end (min 1 for N>=5)
+            // WCA for AoX: trim (X/20) from each side.
+            // We use floor(N * 0.2) or min 1 for N>=5, max 1 for N<5.
+            let K = Math.floor(N * 0.2); 
+            
+            // For small N, stick to Ao5 logic (trim 1 from each side for N>=5)
+            if (N >= 5) {
+                K = Math.max(1, K); 
+            } else if (N < 5) {
+                // For N=3, N=4, we calculate the simple mean of all countable times
+                K = 0; 
+            }
+            
+            const dnfs = times.filter(t => t >= DNF_VALUE).length;
+            
+            if (dnfs > K) return 'DNF'; 
+
+            // Treat DNF as a very large number for sorting
+            const sortableTimes = times.map(t => t >= DNF_VALUE ? maxTime : t); 
+            const sortedAll = [...sortableTimes].sort((a, b) => a - b);
+            
+            // Trim K fastest and K slowest
+            const trimmedTimes = sortedAll.slice(K, sortedAll.length - K);
+            
+            if (trimmedTimes.length === 0) return 'N/A';
+            
+            // Check if any trimmed time is still effectively a DNF
+            if (trimmedTimes.some(t => t === maxTime)) return 'DNF'; 
+
+            const sum = trimmedTimes.reduce((acc, time) => acc + time, 0);
+            const avg = sum / trimmedTimes.length;
+            
+            return formatTime(Math.round(avg));
+        }
+        
+        /**
+         * Calculates the WCA-style average of 5 (Ao5).
+         */
+        function calculateAo5(times) {
+            const n = 5;
+            if (times.length < n) return 'N/A';
+            const recentTimes = times.slice(-n);
+            return calculateCustomAverage(recentTimes);
+        }
+
+        // --- Modal Control ---
+        function showModal(message, isVoting = false) {
+            modalMessage.innerHTML = message;
+            modalContainer.classList.remove('hidden');
+            modalContainer.classList.add('flex');
+            hideMinimalWaitingModal();
+            
+            // Reset modal buttons
+            modalButtons.innerHTML = ''; 
+            
+            if (!isVoting) {
+                // Default continue button
+                modalButtons.innerHTML = `
+                    <button id="modal-close-btn" onclick="hideModal()" class="px-6 py-3 bg-accent-green text-dark-primary font-bold rounded-lg hover:bg-green-500 transition-colors">
+                        Continue
+                    </button>
+                `;
+            }
+            // Voting buttons are handled by showRaceEndModalForVoting when isVoting is true
+        }
+
+        function hideModal() {
+            modalContainer.classList.add('hidden');
+            modalContainer.classList.remove('flex');
+            
+            // If the race has ended, check the next round transition
+            if (game[1].state === GAME_STATE.SOLVED && game[2].state === GAME_STATE.SOLVED) {
+                checkButtonState(); // Re-enable the main button
+            }
+        }
+        
+        function showMinimalWaitingModal(message) {
+             document.getElementById('waiting-modal-message').textContent = message;
+             waitingModalContainer.classList.remove('hidden', 'opacity-0');
+             waitingModalContainer.classList.add('opacity-100');
+        }
+
+        function hideMinimalWaitingModal() {
+             waitingModalContainer.classList.remove('opacity-100');
+             waitingModalContainer.classList.add('opacity-0');
+             // Wait for transition to complete before hiding fully
+             setTimeout(() => {
+                 waitingModalContainer.classList.add('hidden');
+             }, 300);
+        }
+
+        // --- WCA-style Scramble Generation (Unchanged) ---
+        function generateScramble() {
+            const moves = ["U", "D", "L", "R", "F", "B"];
+            const modifiers = ["", "'", "2"];
+            let scramble = "";
+            let lastAxis = ""; 
+
+            const getAxis = (move) => {
+                if (['U', 'D'].includes(move)) return 'Y';
+                if (['L', 'R'].includes(move)) return 'X';
+                if (['F', 'B'].includes(move)) return 'Z';
+            };
+
+            for (let i = 0; i < 25; i++) {
+                let move, axis;
+                do {
+                    move = moves[Math.floor(Math.random() * moves.length)];
+                    axis = getAxis(move);
+                } while (axis === lastAxis);
+
+                const modifier = modifiers[Math.floor(Math.random() * modifiers.length)];
+                scramble += move + modifier + " ";
+                lastAxis = axis;
+            }
+            return scramble.trim();
+        }
+
+        // --- Timer and Game Control ---
+
+        function checkButtonState() {
+            const allSolved = game[1].state === GAME_STATE.SOLVED && game[2].state === GAME_STATE.SOLVED;
+            const currentTotalSolves = game[1].history.length;
+            const nextRoundNum = currentTotalSolves + 1;
+            const isAo5Complete = currentTotalSolves > 0 && currentTotalSolves % 5 === 0;
+
+            if (isAo5Complete && !isBonusRound) {
+                // Show Ao5 completion message
+                roundCounterEl.textContent = 'Ao5 Race Complete';
+                nextRoundBtn.disabled = true; // Wait for vote via modal
+                nextRoundBtn.textContent = 'Waiting for Bonus Round Vote...'; 
+            } else if (allSolved) {
+                // Regular round or Bonus Round advance
+                const totalRounds = isBonusRound ? currentTotalSolves : 5;
+                roundCounterEl.textContent = isBonusRound ? `Bonus Round ${currentTotalSolves + 1}` : `Round ${nextRoundNum}/5`;
+                nextRoundBtn.disabled = false;
+                nextRoundBtn.textContent = `Next Scramble (Round ${nextRoundNum})`;
+            } else {
+                // Waiting for solve
+                const totalRounds = isBonusRound ? 'Unlimited' : '5';
+                roundCounterEl.textContent = isBonusRound ? `Bonus Round ${currentTotalSolves + 1}` : `Round ${nextRoundNum}/${totalRounds}`;
+                nextRoundBtn.disabled = true;
+                nextRoundBtn.textContent = 'Waiting for both players to solve...';
+            }
+        }
+
+        function updateUI(playerId) {
+            const p = game[playerId];
+            const timerEl = document.getElementById(`timer-${playerId}`);
+            const stateEl = document.getElementById(`state-${playerId}`);
+            const panelEl = document.getElementById(`player-${playerId}-panel`);
+            const resultEl = document.getElementById(`result-${playerId}`);
+            const historyEl = document.getElementById(`history-${playerId}`);
+            const penaltyControlsEl = document.getElementById(`penalty-controls-${playerId}`);
+            const ao5El = document.getElementById(`ao5-${playerId}`);
+            const caEl = document.getElementById(`ca-${playerId}`);
+
+            const isControlled = (playerId === currentUser);
+
+            // Update time display: 
+            let displayTime = '0.00';
+            if (p.state === GAME_STATE.SOLVING) {
+                displayTime = formatTime(Date.now() - p.startTime);
+            } else if (p.state === GAME_STATE.INSPECTION) {
+                displayTime = formatTime(p.time); 
+            } else {
+                displayTime = formatTime(p.time);
+            }
+            
+            timerEl.textContent = displayTime;
+            stateEl.textContent = p.state;
+
+            // --- Reset/Default Classes ---
+            panelEl.classList.remove('border-accent-green', 'border-yellow-400', 'border-white', 'border-accent-red');
+            panelEl.classList.add('border-transparent');
+            timerEl.classList.remove('text-accent-green', 'text-yellow-400', 'text-white', 'text-accent-red');
+            timerEl.classList.add('text-gray-500');
+            stateEl.classList.remove('text-accent-green', 'text-yellow-400', 'text-white', 'text-accent-red');
+            stateEl.classList.add('text-gray-400');
+            resultEl.textContent = p.result;
+            resultEl.classList.remove('text-accent-red');
+            resultEl.classList.add('text-accent-yellow');
+            penaltyControlsEl.classList.add('hidden'); 
+
+
+            // --- Apply State-specific Classes ---
+            if (p.state === GAME_STATE.READY) {
+                stateEl.textContent = 'READY (Hold Space/Click)';
+                stateEl.classList.replace('text-gray-400', 'text-accent-green');
+                timerEl.classList.replace('text-gray-500', 'text-accent-green');
+                panelEl.classList.add('border-accent-green'); 
+            } else if (p.state === GAME_STATE.INSPECTION && isControlled) {
+                stateEl.textContent = 'INSPECTING';
+                stateEl.classList.replace('text-gray-400', 'text-accent-yellow');
+                timerEl.classList.replace('text-gray-500', 'text-accent-yellow');
+                panelEl.classList.add('border-accent-yellow');
+                if (p.time <= 0) { 
+                    timerEl.classList.replace('text-accent-yellow', 'text-accent-red');
+                }
+            } else if (p.state === GAME_STATE.SOLVING && isControlled) {
+                stateEl.textContent = 'SOLVING';
+                stateEl.classList.replace('text-gray-400', 'text-white');
+                timerEl.classList.replace('text-gray-500', 'text-white');
+                panelEl.classList.add('border-white');
+            } else if (p.state === GAME_STATE.SOLVED) {
+                stateEl.textContent = 'SOLVED';
+                
+                if (p.time >= DNF_VALUE) {
+                    resultEl.classList.add('text-accent-red');
+                    timerEl.classList.add('text-accent-red');
+                } else {
+                    timerEl.classList.replace('text-gray-500', 'text-accent-green');
+                }
+                panelEl.classList.add('border-accent-green');
+                
+                if(isControlled) {
+                    penaltyControlsEl.classList.remove('hidden');
+                    penaltyControlsEl.classList.add('flex');
+                }
+            } 
+            
+            if (playerId !== currentUser) {
+                 panelEl.classList.add('opacity-50');
+            } else {
+                 panelEl.classList.remove('opacity-50');
+            }
+
+            // --- Update Averages and History ---
+            const ao5 = calculateAo5(p.history);
+            ao5El.innerHTML = `Ao5: <span class="${ao5 === 'N/A' || ao5 === 'DNF' ? 'text-gray-500' : 'text-accent-yellow'}">${ao5}</span>`;
+            
+            const ca = calculateCustomAverage(p.history);
+            caEl.innerHTML = `Ca: <span class="${ca === 'N/A' || ca === 'DNF' ? 'text-gray-500' : 'text-accent-yellow'}">${ca}</span>`;
+            
+            // Only show Cumulative Average (Ca) if we are in the bonus round AND have more than 5 solves
+            if (isBonusRound && p.history.length > 5) {
+                caEl.classList.remove('hidden');
+            } else {
+                caEl.classList.add('hidden');
+            }
+
+            // Display history
+            historyEl.innerHTML = `<p class="text-sm font-semibold text-gray-400 mb-2">Solve History (Total Solves: ${p.history.length}):</p>`;
+            
+            if (p.history.length > 0) {
+                const historyListHtml = p.history.slice().reverse().map((time, index) => {
+                    const solveNumber = p.history.length - index; 
+                    let displayTime;
+                    let timeClass = 'text-white';
+                    
+                    if (time >= DNF_VALUE) {
+                        displayTime = 'DNF';
+                        timeClass = 'text-accent-red';
+                    }
+                    else if (p.result.startsWith('+2') && solveNumber === p.history.length) {
+                        displayTime = `${formatTime(time)} (+2)`;
+                    } 
+                    else {
+                        displayTime = formatTime(time);
+                    }
+
+
+                    return `<div class="flex justify-between text-sm py-1 border-b border-gray-700 last:border-b-0">
+                                <span class="font-medium text-gray-300">#${solveNumber}</span>
+                                <span class="${timeClass} font-bold">${displayTime}</span>
+                            </div>`;
+                }).join('');
+                
+                historyEl.innerHTML += `<div class="divide-y divide-gray-700">${historyListHtml}</div>`;
+                historyEl.scrollTop = historyEl.scrollHeight; 
+            } else {
+                historyEl.innerHTML += `<p class="text-gray-500 text-sm">No solves yet.</p>`;
+            }
+
+            checkButtonState(); // Always update button visibility on UI change
+        }
+
+        function stopTimer(playerId) {
+            const p = game[playerId];
+            if (p.timerId) clearInterval(p.timerId);
+            
+            if (p.state === GAME_STATE.SOLVING) {
+                
+                let finalTime = Date.now() - p.startTime;
+                p.unpenalizedTime = finalTime; // Store the raw time (before WCA +2)
+                p.state = GAME_STATE.SOLVED;
+
+                let resultText = formatTime(finalTime);
+                let timeToStore = finalTime;
+                
+                // 1. Check for DNF (time-out)
+                if (finalTime >= maxTime) {
+                    timeToStore = DNF_VALUE;
+                    resultText = "DNF (Time Limit)";
+                } 
+                // 2. Apply WCA inspection penalty if flagged and not already DNF
+                else if (p.hasPenalty) {
+                    timeToStore += 2000; 
+                    resultText = `+2 (${formatTime(timeToStore)})`;
+                }
+
+                p.time = timeToStore;
+                p.result = resultText;
+                
+                p.history.push(p.time); 
+
+                updateUI(playerId);
+                
+                if (game[1].state === GAME_STATE.SOLVED && game[2].state === GAME_STATE.SOLVED) {
+                    checkRaceEnd();
+                } else {
+                    // Minimalistic pop up: waiting for other player
+                    showMinimalWaitingModal(`Waiting for Player ${playerId === 1 ? 2 : 1} to record their solve...`);
+                }
+            }
+        }
+        
+        // --- Manual Penalty Controls (NO POP-UP CONFIRMATION) ---
+        window.applyManualPenalty = function(playerId, type) {
+            const p = game[playerId];
+            
+            if (p.history.length === 0 || p.state !== GAME_STATE.SOLVED || playerId !== currentUser) {
+                showMinimalWaitingModal(`Action not allowed. Penalties can only be applied to the current player's last completed solve.`);
+                return;
+            }
+            
+            hideMinimalWaitingModal();
+            
+            const lastSolveIndex = p.history.length - 1; 
+            const baseTime = p.unpenalizedTime < maxTime ? p.unpenalizedTime : DNF_VALUE;
+            
+            let newTime;
+            let newResult;
+
+            if (type === '+2') {
+                if (baseTime >= DNF_VALUE) {
+                    showMinimalWaitingModal(`Player ${playerId}: Cannot apply +2 to a solve that is already DNF.`);
+                    setTimeout(hideMinimalWaitingModal, 3000);
+                    return;
+                }
+                
+                // Apply the penalty to the last raw time
+                newTime = baseTime + 2000;
+                newResult = `+2 (${formatTime(newTime)}) (Manual)`;
+
+            } else if (type === 'DNF') {
+                newTime = DNF_VALUE; 
+                newResult = 'DNF (Manual)';
+            }
+            
+            if (newTime !== undefined) {
+                p.time = newTime;
+                p.result = newResult;
+                p.hasPenalty = (newResult.startsWith('+2')); 
+                p.history[lastSolveIndex] = newTime;
+                
+                updateUI(1);
+                updateUI(2);
+                
+                // --- NON-BLOCKING CONFIRMATION ---
+                const confirmationMessage = (type === '+2') 
+                    ? `Player ${playerId}: +2 Penalty Applied!` 
+                    : `Player ${playerId}: DNF Applied!`;
+                
+                showMinimalWaitingModal(confirmationMessage);
+                setTimeout(hideMinimalWaitingModal, 3000); 
+            }
+        };
+
+        function startInspection(playerId) {
+            const p = game[playerId];
+            if (p.state !== GAME_STATE.READY) return;
+            
+            hideMinimalWaitingModal();
+
+            p.state = GAME_STATE.INSPECTION;
+            p.inspectionStart = Date.now();
+            p.hasPenalty = false; 
+            updateUI(playerId);
+
+            p.timerId = setInterval(() => {
+                const elapsed = Date.now() - p.inspectionStart;
+                const remaining = inspectionDuration - elapsed;
+                
+                p.time = remaining; 
+                updateUI(playerId);
+                
+                if (remaining <= -2000) { 
+                     clearInterval(p.timerId);
+                     
+                     p.time = DNF_VALUE; 
+                     p.state = GAME_STATE.SOLVED;
+                     p.result = "DNF (Inspection Time-Out)";
+                     p.history.push(p.time);
+                     updateUI(playerId);
+                     
+                     // Show the main modal, which then calls checkRaceEnd
+                     showModal(`Player ${playerId} DNF! Solve started after the 17-second limit.`);
+
+                } else if (remaining <= 0 && p.state === GAME_STATE.INSPECTION) {
+                     p.hasPenalty = true;
+                     showMinimalWaitingModal(`Player ${playerId} - Inspection expired! Mandatory +2 penalty will be applied when you stop the timer.`);
+                } 
+            }, 10);
+        }
+
+        function startSolving(playerId) {
+            const p = game[playerId];
+            if (p.state === GAME_STATE.INSPECTION) {
+                if (p.timerId) clearInterval(p.timerId); 
+                
+                hideMinimalWaitingModal();
+
+                p.time = 0; 
+                p.state = GAME_STATE.SOLVING;
+                p.startTime = Date.now();
+                p.timerId = setInterval(() => updateTimer(playerId), 10);
+                updateUI(playerId);
+            }
+        }
+
+        function updateTimer(playerId) {
+            const p = game[playerId];
+            if (p.state === GAME_STATE.SOLVING) {
+                const elapsed = Date.now() - p.startTime;
+                
+                if (elapsed >= maxTime) {
+                    stopTimer(playerId); 
+                    return;
+                }
+                
+                p.time = elapsed;
+                updateUI(playerId);
+            }
+        }
+
+        function announceRoundWinner() {
+            const t1 = game[1].time;
+            const t2 = game[2].time;
+            const r1 = game[1].result;
+            const r2 = game[2].result;
+            let winnerMessage = '';
+
+            const dnf1 = t1 >= DNF_VALUE;
+            const dnf2 = t2 >= DNF_VALUE;
+
+            if (dnf1 && dnf2) {
+                winnerMessage = "Round Result: It's a tie! Both players got DNF.";
+            } else if (dnf1) {
+                winnerMessage = `Round Result: Player 2 wins with ${r2}! Player 1 DNF.`;
+            } else if (dnf2) {
+                winnerMessage = `Round Result: Player 1 wins with ${r1}! Player 2 DNF.`;
+            } else if (t1 < t2) {
+                winnerMessage = `Round Result: Player 1 wins with ${r1}!`;
+            } else if (t2 < t1) {
+                winnerMessage = `Round Result: Player 2 wins with ${r2}!`;
+            } else {
+                winnerMessage = `Round Result: It's a tie! Both players solved in ${r1}.`;
+            }
+            
+            return winnerMessage;
+        }
+        
+        function showRaceEndModalForVoting(roundWinnerMessage) {
+            // Calculate final averages before showing the vote modal
+            const p1Ao5 = calculateAo5(game[1].history);
+            const p2Ao5 = calculateAo5(game[2].history);
+            
+            const p1Ca = calculateCustomAverage(game[1].history);
+            const p2Ca = calculateCustomAverage(game[2].history);
+            
+            let message = roundWinnerMessage + "\n\n";
+
+            if (isBonusRound) {
+                // If already in Bonus Round, just announce current Ca and continue
+                message += `--- 📊 BONUS ROUND STATUS 📊 ---\n`;
+                message += `P1 Total Solves: ${game[1].history.length} | P1 Ca: ${p1Ca}\n`;
+                message += `P2 Total Solves: ${game[2].history.length} | P2 Ca: ${p2Ca}\n\n`;
+                message += `Press 'Continue' then 'Next Scramble' to proceed.`;
+                
+                // Set button to continue to the next round immediately
+                modalButtons.innerHTML = `
+                    <button id="modal-close-btn" onclick="hideModal(); checkButtonState();" class="px-6 py-3 bg-accent-green text-dark-primary font-bold rounded-lg hover:bg-green-500 transition-colors">
+                        Continue
+                    </button>
+                `;
+            } else {
+                // Ao5 is complete (Solves 5, 10, 15, etc.) -> Time to vote!
+                message += `--- 🏆 Ao5 RACE COMPLETE! 🏆 ---\n`;
+                message += `P1 Ao5: ${p1Ao5} | P2 Ao5: ${p2Ao5}\n\n`;
+                message += `**Do you want to start a Bonus Round?**\n(Requires consent from both players)`;
+                
+                // Show voting buttons for the current user
+                modalButtons.innerHTML = `
+                    <button onclick="handleBonusVote('restart')" class="px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors mr-4">
+                        Restart Ao5 Race
+                    </button>
+                    <button onclick="handleBonusVote('bonus')" class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors">
+                        Continue to Bonus Round
+                    </button>
+                `;
+                
+                game[1].vote = null;
+                game[2].vote = null;
+
+            }
+            
+            showModal(message, true);
+        }
+        
+        window.handleBonusVote = function(voteType) {
+            if (currentUser === 0) return;
+
+            game[currentUser].vote = voteType;
+            
+            const otherPlayerId = currentUser === 1 ? 2 : 1;
+
+            if (game[otherPlayerId].vote === null) {
+                // Other player hasn't voted yet
+                const message = `Player ${currentUser} voted to **${voteType.toUpperCase()}**.\n\nWaiting for Player ${otherPlayerId} to vote...`;
+                showModal(message, true); // Re-show modal with the message
+            } else {
+                // Both players have voted, determine the outcome
+                
+                if (game[1].vote === 'restart' || game[2].vote === 'restart') {
+                    // One player wants to restart -> restart race
+                    isBonusRound = false;
+                    resetRoundState(true);
+                    hideModal();
+                    showMinimalWaitingModal('Race reset! Starting new Ao5 competition. Hold SPACE or **CLICK** to begin your inspection.');
+                    setTimeout(hideMinimalWaitingModal, 3000);
+                } else if (game[1].vote === 'bonus' && game[2].vote === 'bonus') {
+                    // Both players consent -> continue to bonus round
+                    isBonusRound = true;
+                    resetRoundState(false);
+                    hideModal();
+                    showMinimalWaitingModal('Bonus Round accepted! The competition continues. Hold SPACE or **CLICK** to begin your inspection.');
+                    setTimeout(hideMinimalWaitingModal, 3000);
+                }
+            }
+        }
+
+
+        function checkRaceEnd() {
+            if (game[1].state !== GAME_STATE.SOLVED || game[2].state !== GAME_STATE.SOLVED) {
+                return;
+            }
+            
+            hideMinimalWaitingModal();
+
+            const roundWinnerMessage = announceRoundWinner();
+            
+            // Check for Ao5 Race completion (or multiple of 5)
+            if (game[1].history.length > 0 && game[1].history.length % 5 === 0) {
+                showRaceEndModalForVoting(roundWinnerMessage);
+            } else {
+                // Regular round end (1-4) or a Bonus Round solve (not a 5x multiple)
+                let modalContent = roundWinnerMessage;
+                if (isBonusRound) {
+                    modalContent += `\n\n**Bonus Round Ca (Cumulative Average) Status:**\nP1 Ca: ${calculateCustomAverage(game[1].history)} | P2 Ca: ${calculateCustomAverage(game[2].history)}\n\nPress 'Continue' then 'Next Scramble' to proceed.`;
+                } else {
+                    modalContent += "\n\nPress 'Continue' then 'Next Scramble' to continue the match.";
+                }
+                showModal(modalContent);
+            }
+        }
+
+        // --- Public Actions ---
+
+        window.selectPlayer = function(playerId) {
+            currentUser = playerId;
+
+            loginContainer.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            gameContainer.classList.add('flex');
+
+            resetRoundState(true); // Start of a new race
+            
+            // Show ready message immediately
+            showMinimalWaitingModal('Race started! Hold SPACE or **CLICK** to begin your inspection.');
+            setTimeout(hideMinimalWaitingModal, 3000);
+        }
+
+        function resetRoundState(isNewRace = false) {
+            // Clear any running timers
+            if (game[1].timerId) clearInterval(game[1].timerId);
+            if (game[2].timerId) clearInterval(game[2].timerId);
+
+            // Reset transient state
+            for(const id of [1, 2]) {
+                game[id].state = GAME_STATE.READY; // Always ready to go
+                game[id].time = 0;
+                game[id].result = '';
+                game[id].hasPenalty = false;
+                game[id].inspectionStart = 0;
+                game[id].startTime = 0;
+                game[id].unpenalizedTime = 0;
+                game[id].vote = null;
+                if (isNewRace) {
+                    game[id].history = []; // Only clear history for a new RACE
+                }
+            }
+            
+            isBonusRound = isBonusRound && !isNewRace; // Keep bonus state unless it's a new race
+            
+            // Generate new scramble
+            scrambleText.textContent = generateScramble();
+            updateUI(1);
+            updateUI(2);
+        }
+        
+        /**
+         * Handles the main button click: advancing the round in a regular or bonus set.
+         */
+        window.handleNextRound = function() {
+            const allSolved = game[1].state === GAME_STATE.SOLVED && game[2].state === GAME_STATE.SOLVED;
+            if (!allSolved) return; 
+            
+            const currentTotalSolves = game[1].history.length;
+            const isAo5Complete = currentTotalSolves > 0 && currentTotalSolves % 5 === 0;
+            
+            // Check if we need to wait for voting (only happens after Ao5 completion when not yet in bonus)
+            if (isAo5Complete && !isBonusRound) {
+                 // This path should ideally be handled by the modal, but just in case:
+                 showModal("The Ao5 Race is complete. Please use the voting buttons in the previous pop-up to determine the next step.", true);
+                 return;
+            }
+
+            // Normal advance (either rounds 1-4, or any round > 5 in bonus mode)
+            resetRoundState(false); 
+            const nextRoundNum = currentTotalSolves + 1;
+            const message = isBonusRound 
+                ? `Bonus Round ${nextRoundNum} is ready! Hold SPACE or **CLICK** to begin inspection.`
+                : `Round ${nextRoundNum}/5 is ready! Hold SPACE or **CLICK** to begin inspection.`;
+            showMinimalWaitingModal(message);
+            setTimeout(hideMinimalWaitingModal, 3000);
+        };
+
+
+        window.onload = function() {
+            scrambleText.textContent = generateScramble();
+            // Wait for player selection before setting initial state
+            updateUI(1);
+            updateUI(2);
+        };
+
+
+        // --- Spacebar & Mouse Event Listener Logic ---
+
+        let spaceDownTime = 0; // Universal timestamp for hold start
+        let isTimerActive = false; // Flag: Is a timer-controlling input currently pressed down?
+
+        // Helper function to check if the user is currently allowed to control the timer
+        function isControlAllowed() {
+            return currentUser !== 0 && !modalContainer.classList.contains('flex');
+        }
+        
+        /**
+         * Shared Handler for Keydown/Mousedown.
+         * Responsibilities:
+         * 1. Stop timer if currently solving (Priority 1)
+         * 2. Start the 300ms hold if ready
+         */
+        function handleDownEvent(e) {
+            const p = game[currentUser];
+            const timerEl = document.getElementById(`timer-${currentUser}`);
+
+            // 1. STOP TIMER (Solving State) - Priority 1
+            if (p.state === GAME_STATE.SOLVING) {
+                stopTimer(currentUser);
+                isTimerActive = false; // Reset flag after stopping. No UP event action is needed here.
+                return;
+            }
+            
+            // If an input is already active (i.e., key/mouse is already down), ignore repeated events
+            if (isTimerActive) return;
+
+            // 2. START HOLD (Ready State)
+            if (p.state === GAME_STATE.READY) {
+                spaceDownTime = Date.now();
+                timerEl.classList.remove('text-accent-green');
+                timerEl.classList.add('ready-text'); 
+                isTimerActive = true; // Input is now DOWN, tracking the hold
+            }
+            
+            // 3. Prepare for SOLVING on UP (Inspection State)
+            // If in inspection, we still set the flag so the UP event can trigger the start of solving.
+            if (p.state === GAME_STATE.INSPECTION) {
+                 isTimerActive = true;
+            }
+        }
+
+        /**
+         * Shared Handler for Keyup/Mouseup.
+         * Responsibilities:
+         * 1. Check hold duration and start inspection (Ready State)
+         * 2. Start solving (Inspection State)
+         */
+        function handleUpEvent(e) {
+            const p = game[currentUser];
+            const timerEl = document.getElementById(`timer-${currentUser}`);
+            const holdDuration = Date.now() - spaceDownTime;
+
+            if (!isTimerActive) return; // Only proceed if a DOWN event was successfully tracked
+            isTimerActive = false; // Reset flag as input is now UP
+            
+            timerEl.classList.remove('ready-text'); 
+            
+            // 1. START INSPECTION (Ready State)
+            if (p.state === GAME_STATE.READY) {
+                if (holdDuration >= 300) {
+                    startInspection(currentUser);
+                } else {
+                    // Too short of a hold
+                    showMinimalWaitingModal(`Player ${currentUser}: Hold SPACE or CLICK for at least 0.3 seconds to start inspection.`);
+                    setTimeout(hideMinimalWaitingModal, 3000);
+                    timerEl.classList.add('text-accent-green');
+                    // Reset status immediately if hold was too short
+                    p.state = GAME_STATE.READY;
+                    updateUI(currentUser);
+                }
+                spaceDownTime = 0;
+            
+            // 2. START SOLVING (Inspection State)
+            } else if (p.state === GAME_STATE.INSPECTION) {
+                startSolving(currentUser);
+            }
+        }
+        
+        // Keydown Listener: Handles hold start (READY) and stop timer (SOLVING)
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !e.repeat && isControlAllowed()) {
+                e.preventDefault(); 
+                handleDownEvent(e);
+            }
+        });
+
+        // Keyup Listener: Handles hold end (READY) and start solving (INSPECTION)
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space' && isControlAllowed()) {
+                e.preventDefault();
+                handleUpEvent(e);
+            }
+        });
+        
+        // Mousedown Listener: Handles hold start (READY) and stop timer (SOLVING)
+        document.addEventListener('mousedown', (e) => {
+            // Only respond to left click (button 0) and if the click is outside buttons/inputs
+            if (e.button === 0 && isControlAllowed() && e.target.closest('button, a, input, select, textarea') === null) {
+                e.preventDefault();
+                handleDownEvent(e);
+            }
+        });
+
+        // Mouseup Listener: Handles hold end (READY) and start solving (INSPECTION)
+        document.addEventListener('mouseup', (e) => {
+            // Only respond to left click (button 0) and if the click is outside buttons/inputs
+            if (e.button === 0 && isControlAllowed() && e.target.closest('button, a, input, select, textarea') === null) {
+                e.preventDefault();
+                handleUpEvent(e);
+            }
+        });
+
+    </script>
+</body>
+</html>
